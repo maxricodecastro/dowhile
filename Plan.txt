@@ -1,0 +1,62 @@
+Math While You Wait – Detecting ChatGPT’s STATE
+=========================================================
+
+Below‑the‑surface, ChatGPT exposes three observable “signals” you can hook into; each can be turned into events for a tiny finite‑state machine that flips between THINKING → STREAMING → DONE.  
+Choose whichever mix of them makes you most comfortable with long‑term maintainability.
+
+-----------------------------------------------------------------
+1. DOM mutation signals (quickest to prototype)
+-----------------------------------------------------------------
+
+Stage        | What actually changes in the page                                          | How to notice it
+------------ | -------------------------------------------------------------------------- | -----------------------------------------------------------------
+THINKING     | • The textarea/input becomes `disabled`, `aria-disabled="true"` or has `pointer-events:none`.  
+• No `<div data-message-author-role="assistant">` exists yet. | Observe the input node with a `MutationObserver` watching attribute changes. Emit “thinking” once the user’s last message is in the DOM *and* the input flips to disabled.
+STREAMING    | • A new assistant-message element is inserted whose innermost token container carries the class **`result-streaming`**, and its textContent mutates continuously. | In the same observer, watch for the first assistant node that contains `.result-streaming`; that marks the start of streaming.
+DONE         | • When generation finishes, ChatGPT removes **`result-streaming`** from that element.  
+• The textarea re‑enables (`disabled` removed). | Fire “done” when the most‑recent assistant element no longer has `.result-streaming` **and** the input is enabled again.
+
+Why it works → Those class/attribute flips come from React state updates, so they’re tightly coupled to the product’s own “isGenerating” flags and survive page refreshes.
+
+-----------------------------------------------------------------
+2. Network‑level signals (robust to future CSS refactors)
+-----------------------------------------------------------------
+
+1. Monkey‑patch `window.fetch` (or the EventSource constructor) before any requests fire.  
+2. Watch for calls that hit OpenAI’s endpoint `/backend-api/conversation?stream=true`.  
+   • The moment you see the first server‑sent‑event chunk whose payload includes `"role":"assistant"`, emit **STREAMING**.  
+3. The server sends a literal line containing only `[DONE]` when generation completes; on that chunk, emit **DONE**.
+
+THINKING starts right after the user’s prompt POST succeeds but before the first SSE chunk arrives.
+
+Pros → independent of DOM, keeps working if OpenAI rewrites the UI.  
+Cons → heavier (patching fetch), brittle if endpoint paths change.
+
+-----------------------------------------------------------------
+3. Time‑based heuristic (safety net)
+-----------------------------------------------------------------
+
+When you detect “thinking”, start a timer.  
+If *no* assistant node appears **and** *no* SSE stream opens within, say, 15 s, assume a network hiccup and return to idle. This prevents the widget from getting stuck if the request errors out.
+
+-----------------------------------------------------------------
+4. Hybrid approach (recommended)
+-----------------------------------------------------------------
+
+Use the DOM for day‑to‑day work, but keep a thin fetch‑listener in the background.  
+If the DOM observer misses state changes (e.g., OpenAI renames `.result-streaming`), fall back to the network events until an update is pushed.
+
+-----------------------------------------------------------------
+5. Implementation tips (still no code!)
+-----------------------------------------------------------------
+
+• Maintain an internal enum `{IDLE, THINKING, STREAMING}` and only fire a UI change when the state actually transitions—this avoids flicker when multiple mutations arrive quickly.  
+• Users can open several chats in tabs; scope observers to `document.visibilityState === "visible"` or the current thread container.  
+• Clean up observers on `beforeunload` so the extension doesn’t leak.  
+• Expose the state machine via a tiny event‑emitter (e.g., `window.dispatchEvent(new CustomEvent("mwyw-streaming-start")))` so the arithmetic widget can subscribe cleanly.
+
+-----------------------------------------------------------------
+Bottom line
+-----------------------------------------------------------------
+You have three orthogonal levers—DOM attributes, network traffic, and timeouts.  
+Pick DOM mutation for simplicity, back it up with network interception for durability, and gate everything through a small state machine so your “Math While You Wait” box always appears exactly when the user is, well, waiting.
