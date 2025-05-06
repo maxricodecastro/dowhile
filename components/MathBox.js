@@ -38,41 +38,96 @@ class MathBox {
       color: '#666'
     });
 
-    // Answer input
-    const answer = document.createElement('input');
-    answer.type = 'text';
-    answer.className = 'math-answer';
-    Object.assign(answer.style, {
+    // Answer container (replaces direct input)
+    const answerContainer = document.createElement('div');
+    answerContainer.className = 'math-answer-container';
+    Object.assign(answerContainer.style, {
       width: '70px',
+      height: '28px',
       padding: '4px 4px',
-      border: 'none',
       borderRadius: '24px',
-      fontSize: '16px',
       backgroundColor: '#f5f5f5',
       textAlign: 'center',
-      outline: 'none'
+      outline: 'none',
+      position: 'relative',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      cursor: 'text'
     });
 
-    // Generate first problem
+    // Hidden input (for actual keyboard input)
+    const answer = document.createElement('input');
+    answer.type = 'text';
+    answer.className = 'math-answer-hidden';
+    Object.assign(answer.style, {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '100%',
+      opacity: 0,
+      zIndex: 2
+    });
+
+    // Visual display for animated text
+    const answerDisplay = document.createElement('div');
+    answerDisplay.className = 'math-answer-display';
+    Object.assign(answerDisplay.style, {
+      width: '100%',
+      height: '100%',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: '16px',
+      zIndex: 1
+    });
+
+    // Focus visual indicator
+    answerContainer.addEventListener('click', () => {
+      answer.focus();
+    });
+    
+    answer.addEventListener('focus', () => {
+      answerContainer.style.boxShadow = '0 0 0 2px rgba(0, 123, 255, 0.25)';
+    });
+    
+    answer.addEventListener('blur', () => {
+      answerContainer.style.boxShadow = 'none';
+    });
+
+    // AnimatedText instance for the display
+    this._answerDisplay = answerDisplay;
+    this._animatedText = new window.AnimatedText(answerDisplay, { charDelay: 40 });
     this._problemSpan = problem;
     this._answerInput = answer;
     this.generateProblem();
 
     // Answer checker
     answer.addEventListener('input', () => {
+      // Limit input to 3 digits maximum
+      if (answer.value.length > 3) {
+        answer.value = answer.value.slice(0, 3);
+      }
+      
       const userVal = answer.value.trim();
+      this._animatedText.setText(userVal); // Update animated display
+      
       if (userVal === '') return;
       if (Number(userVal) === this._correctAnswer) {
         // Correct! Move to next problem.
         this.generateProblem();
         answer.value = '';
+        this._animatedText.setText(''); // Clear animated display
       }
     });
 
     // Assembly
     container.appendChild(problem);
     container.appendChild(equals);
-    container.appendChild(answer);
+    answerContainer.appendChild(answer);
+    answerContainer.appendChild(answerDisplay);
+    container.appendChild(answerContainer);
 
     return container;
   }
