@@ -6,6 +6,26 @@ class MathBox {
       ...options
     };
     this.element = this.create();
+    
+    // Define shake animation style
+    if (!document.getElementById('mathbox-animations')) {
+      const style = document.createElement('style');
+      style.id = 'mathbox-animations';
+      style.textContent = `
+        @keyframes shake {
+          0% { transform: translateX(0); }
+          20% { transform: translateX(-5px); }
+          40% { transform: translateX(5px); }
+          60% { transform: translateX(-5px); }
+          80% { transform: translateX(5px); }
+          100% { transform: translateX(0); }
+        }
+        .shake {
+          animation: shake 0.4s ease-in-out;
+        }
+      `;
+      document.head.appendChild(style);
+    }
   }
 
   create() {
@@ -104,10 +124,19 @@ class MathBox {
     this.generateProblem();
 
     // Answer checker
-    answer.addEventListener('input', () => {
-      // Limit input to 3 digits maximum
+    answer.addEventListener('input', (event) => {
+      // If already at max length and trying to add more characters
       if (answer.value.length > 3) {
+        // Prevent the input
         answer.value = answer.value.slice(0, 3);
+        
+        // Trigger shake animation
+        answerContainer.classList.add('shake');
+        
+        // Remove shake class after animation completes
+        setTimeout(() => {
+          answerContainer.classList.remove('shake');
+        }, 400); // 400ms matches animation duration
       }
       
       const userVal = answer.value.trim();
@@ -115,10 +144,58 @@ class MathBox {
       
       if (userVal === '') return;
       if (Number(userVal) === this._correctAnswer) {
-        // Correct! Move to next problem.
-        this.generateProblem();
-        answer.value = '';
-        this._animatedText.setText(''); // Clear animated display
+        // Add visual feedback - briefly disable the input
+        answer.disabled = true;
+        
+        // Wait 100ms before moving to the next problem
+        setTimeout(() => {
+          // Correct! Move to next problem.
+          this.generateProblem();
+          answer.value = '';
+          this._animatedText.setText(''); // Clear animated display
+          answer.disabled = false;
+        }, 200);
+      }
+    });
+
+    // Also handle keydown to prevent certain inputs
+    answer.addEventListener('keydown', (event) => {
+      const allowedKeys = [
+        'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'
+      ];
+      
+      // Only allow numeric inputs and control keys
+      const isNumber = /^[0-9]$/.test(event.key);
+      const isAllowedKey = allowedKeys.includes(event.key);
+      const isModifierKey = event.metaKey || event.ctrlKey;
+      
+      // If not a number or allowed key, block the input
+      if (!isNumber && !isAllowedKey && !isModifierKey) {
+        event.preventDefault();
+        
+        // Trigger shake animation for invalid input
+        answerContainer.classList.add('shake');
+        setTimeout(() => {
+          answerContainer.classList.remove('shake');
+        }, 400);
+        return;
+      }
+      
+      // If at max length and not pressing control keys
+      if (answer.value.length >= 3 && 
+          !isModifierKey &&
+          !isAllowedKey &&
+          event.key.length === 1) {
+        // Prevent the key input
+        event.preventDefault();
+        
+        // Trigger shake animation
+        answerContainer.classList.add('shake');
+        
+        // Remove shake class after animation completes
+        setTimeout(() => {
+          answerContainer.classList.remove('shake');
+        }, 400); // 400ms matches animation duration
       }
     });
 
