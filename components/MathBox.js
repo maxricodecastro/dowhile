@@ -6,6 +6,14 @@ class MathBox {
       ...options
     };
     this.element = this.create();
+    this.streakCounter = 0;
+    
+    // Auto-focus the input on initialization after a small delay
+    setTimeout(() => {
+      if (this._answerInput) {
+        this._answerInput.focus();
+      }
+    }, 100);
     
     // Define shake animation style
     if (!document.getElementById('mathbox-animations')) {
@@ -23,12 +31,76 @@ class MathBox {
         .shake {
           animation: shake 0.4s ease-in-out;
         }
+        
+        @keyframes streakAnimation {
+          0% { 
+            opacity: 0; 
+            transform: translate(-50%, 0); 
+          }
+          15% { 
+            opacity: 1; 
+            transform: translate(-50%, -20px); 
+          }
+          85% { 
+            opacity: 1; 
+            transform: translate(-50%, -20px); 
+          }
+          100% { 
+            opacity: 0; 
+            transform: translate(-50%, 0); 
+          }
+        }
+        
+        .math-box-outer {
+          position: relative;
+          overflow: visible;
+        }
+        
+        .math-box-container {
+          position: relative;
+          z-index: 5;
+          overflow: hidden;
+        }
+        
+        .streak-notification-container {
+          position: absolute;
+          width: 100%;
+          height: 0;
+          top: 0;
+          left: 0;
+          overflow: visible;
+          pointer-events: none;
+        }
+        
+        .streak-notification {
+          position: absolute;
+          left: 50%;
+          top: 0;
+          font-size: 11px;
+          font-weight: 600;
+          color: #34c759;
+          width: max-content;
+          text-align: center;
+          animation: streakAnimation 1.5s ease-in-out forwards;
+          white-space: nowrap;
+        }
       `;
       document.head.appendChild(style);
     }
   }
 
   create() {
+    // Create outer container to handle overflow properly
+    const outerContainer = document.createElement('div');
+    outerContainer.className = 'math-box-outer';
+    
+    // Create streak notification container
+    const streakContainer = document.createElement('div');
+    streakContainer.className = 'streak-notification-container';
+    outerContainer.appendChild(streakContainer);
+    this._streakContainer = streakContainer;
+    
+    // Create main box container
     const container = document.createElement('div');
     container.className = 'math-box-container';
     Object.assign(container.style, {
@@ -41,6 +113,8 @@ class MathBox {
       borderRadius: '44px',
       boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
     });
+    outerContainer.appendChild(container);
+    this._mainContainer = container;
 
     // Problem display (e.g., "41 + 24")
     const problem = document.createElement('span');
@@ -150,11 +224,17 @@ class MathBox {
         // Wait 100ms before moving to the next problem
         setTimeout(() => {
           // Correct! Move to next problem.
+          this.streakCounter++;
+          this.checkStreak();
+          
           this.generateProblem();
           answer.value = '';
           this._animatedText.setText(''); // Clear animated display
           answer.disabled = false;
-        }, 200);
+          
+          // Refocus the input
+          answer.focus();
+        }, 220);
       }
     });
 
@@ -206,7 +286,55 @@ class MathBox {
     answerContainer.appendChild(answerDisplay);
     container.appendChild(answerContainer);
 
-    return container;
+    // Add a click event listener to the outer container to focus the input
+    outerContainer.addEventListener('click', (event) => {
+      // Don't interfere with other click handlers
+      if (event.target !== this._answerInput) {
+        this._answerInput.focus();
+      }
+    });
+
+    // Re-focus input when window regains focus
+    window.addEventListener('focus', () => {
+      if (this._answerInput) {
+        this._answerInput.focus();
+      }
+    });
+
+    return outerContainer;
+  }
+  
+  checkStreak() {
+    // For testing: show streak notification after every correct answer
+    let message = '';
+    
+    if (this.streakCounter === 3) {
+      message = 'Three in a row!';
+    } else if (this.streakCounter === 5) {
+      message = 'Five in a row!';
+    } else if (this.streakCounter === 10) {
+      message = '10! Think Fast!';
+    } else {
+      // For testing - show the current streak count
+      message = `${this.streakCounter} correct!`;
+    }
+    
+    this.showStreakNotification(message);
+  }
+  
+  showStreakNotification(message) {
+    const notification = document.createElement('div');
+    notification.className = 'streak-notification';
+    notification.textContent = message;
+    
+    this._streakContainer.appendChild(notification);
+    
+    // Remove notification after animation completes
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 1500);
   }
 
   generateProblem() {
@@ -236,6 +364,13 @@ class MathBox {
     }
     if (parent) {
       parent.appendChild(this.element);
+      
+      // Focus the input after mounting
+      setTimeout(() => {
+        if (this._answerInput) {
+          this._answerInput.focus();
+        }
+      }, 100);
     }
   }
 } 
