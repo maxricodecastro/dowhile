@@ -309,11 +309,13 @@ class MathBox {
     let message = '';
     
     if (this.streakCounter === 3) {
-      message = 'Three in a row!';
+      message = 'Three\'s the charm';
     } else if (this.streakCounter === 5) {
-      message = 'Five in a row!';
+      message = '5 for 5';
     } else if (this.streakCounter === 10) {
-      message = '10! Think Fast!';
+      message = '10? Still thinking?';
+    } else if (this.streakCounter === 20) {
+      message = '20th Century Fox';
     } else {
       // For testing - show the current streak count
       message = `${this.streakCounter} correct!`;
@@ -323,6 +325,11 @@ class MathBox {
   }
   
   showStreakNotification(message) {
+    // Clear any existing notifications first
+    while (this._streakContainer.firstChild) {
+      this._streakContainer.removeChild(this._streakContainer.firstChild);
+    }
+    
     const notification = document.createElement('div');
     notification.className = 'streak-notification';
     notification.textContent = message;
