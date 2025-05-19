@@ -17,7 +17,7 @@
 
   "web_accessible_resources": [
     {
-      "resources": ["pagePatch.js"],
+      "resources": ["pagePatch.js", "MathBox.js"],
       "matches": [
         "https://chat.openai.com/*",
         "https://chatgpt.com/*"
