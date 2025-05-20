@@ -19,10 +19,23 @@
           if (s === STATE.IDLE) {
             mathboxContainer.classList.remove('mathbox-show');
             mathboxContainer.classList.add('mathbox-hide');
+            // Remove the element after animation completes
+            mathboxContainer.addEventListener('animationend', () => {
+              if (mathboxContainer.parentNode) {
+                mathboxContainer.remove();
+              }
+            }, { once: true });
           } else {
+            // Only create if it doesn't exist
+            if (!document.getElementById('mathbox-test')) {
+              createAndMountMathBox();
+            }
             mathboxContainer.classList.remove('mathbox-hide');
             mathboxContainer.classList.add('mathbox-show');
           }
+        } else if (s !== STATE.IDLE) {
+          // Create new MathBox if we're not in IDLE state
+          createAndMountMathBox();
         }
       }
     };
@@ -689,6 +702,7 @@
         100% {
           opacity: 0;
           transform: translateY(10px);
+          visibility: hidden;  /* Hide from mouse events at the end */
         }
       }
 
@@ -703,7 +717,7 @@
 
       .mathbox-hide {
         animation: mathboxHide 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-        display: flex !important;
+        pointer-events: none;  /* Prevent mouse interaction during hide animation */
       }
     `;
     document.head.appendChild(style);

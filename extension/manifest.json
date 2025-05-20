@@ -3,6 +3,11 @@
   "description": "Logs whether ChatGPT is idle, thinking, or streaming.",
   "version": "0.2.0",
   "manifest_version": 3,
+  "icons": {
+    "16": "logo.png",
+    "48": "logo.png",
+    "128": "logo.png"
+  },
 
   "content_scripts": [
     {
