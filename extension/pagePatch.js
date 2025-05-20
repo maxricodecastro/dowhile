@@ -7,16 +7,22 @@
     const STATE = { IDLE: "IDLE", THINKING: "THINKING", STREAMING: "STREAMING" };
     let current = STATE.IDLE;
   
-    // State transition handler - now controls MathBox visibility
+    // State transition handler - now controls MathBox visibility with animation
     const set = s => {
       if (s !== current) {
         current = s;
         console.log("[GPT-DET]", s);
         
-        // Control MathBox visibility based on state
+        // Control MathBox visibility based on state with animation
         const mathboxContainer = document.getElementById('mathbox-test');
         if (mathboxContainer) {
-          mathboxContainer.style.display = (s === STATE.IDLE) ? 'none' : 'flex';
+          if (s === STATE.IDLE) {
+            mathboxContainer.classList.remove('mathbox-show');
+            mathboxContainer.classList.add('mathbox-hide');
+          } else {
+            mathboxContainer.classList.remove('mathbox-hide');
+            mathboxContainer.classList.add('mathbox-show');
+          }
         }
       }
     };
@@ -545,6 +551,17 @@
 
     // Create test container and instance
     const createAndMountMathBox = () => {
+      // Check if we're on the home page or new chat page
+      const isHomePage = window.location.pathname === '/' || window.location.pathname === '/c';
+      if (isHomePage) {
+        // Remove any existing instances if we're on the home page
+        const existingContainer = document.getElementById('mathbox-test');
+        if (existingContainer) {
+          existingContainer.remove();
+        }
+        return null;
+      }
+
       console.log('[MathBox] Creating test instance...');
       
       // Remove any existing instances
@@ -567,10 +584,15 @@
       testContainer.id = 'mathbox-test';
       Object.assign(testContainer.style, {
         width: '100%',
-        display: current === STATE.IDLE ? 'none' : 'flex',  // Initially respect current state
+        display: 'flex',  // Always flex, animation will handle visibility
         justifyContent: 'center',
-        marginBottom: '12px'  // Space between MathBox and prompt
+        marginBottom: '12px',  // Space between MathBox and prompt
+        opacity: '0',  // Start hidden
+        transform: 'translateY(10px)'  // Start below final position
       });
+      
+      // Set initial animation state based on current state
+      testContainer.classList.add(current === STATE.IDLE ? 'mathbox-hide' : 'mathbox-show');
       
       // Insert before the prompt bar
       promptBar.parentElement.insertBefore(testContainer, promptBar);
@@ -599,6 +621,77 @@
       subtree: true
     });
 
+    // Watch for URL changes
+    const handleUrlChange = () => {
+      const isHomePage = window.location.pathname === '/' || window.location.pathname === '/c';
+      const mathboxContainer = document.getElementById('mathbox-test');
+      
+      if (isHomePage && mathboxContainer) {
+        mathboxContainer.remove();
+      } else if (!isHomePage) {
+        createAndMountMathBox();
+      }
+    };
+
+    // Listen for URL changes
+    window.addEventListener('popstate', handleUrlChange);
+    
+    // Also check when navigation occurs through history.pushState
+    const originalPushState = history.pushState;
+    history.pushState = function() {
+      originalPushState.apply(this, arguments);
+      handleUrlChange();
+    };
+
     console.log('[MathBox] Observer started');
+
+    // Define animations for MathBox visibility
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes mathboxShow {
+        0% {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        70% {
+          opacity: 1;
+          transform: translateY(-2px);
+        }
+        100% {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes mathboxHide {
+        0% {
+          opacity: 1;
+          transform: translateY(0);
+        }
+        30% {
+          opacity: 1;
+          transform: translateY(-2px);
+        }
+        100% {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+      }
+
+      #mathbox-test {
+        transition: opacity 0.25s ease-in-out, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+
+      .mathbox-show {
+        animation: mathboxShow 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        display: flex !important;
+      }
+
+      .mathbox-hide {
+        animation: mathboxHide 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        display: flex !important;
+      }
+    `;
+    document.head.appendChild(style);
 
 })();                   // ← end outer IIFE  (only once!)
