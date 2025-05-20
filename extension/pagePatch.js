@@ -605,9 +605,6 @@
       return testContainer;
     };
 
-    // Initial creation with a delay
-    setTimeout(createAndMountMathBox, 1000);
-
     // Watch for body changes and ensure MathBox exists
     const observer = new MutationObserver((mutations) => {
       if (!document.getElementById('mathbox-test')) {
@@ -616,10 +613,29 @@
       }
     });
 
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
+    // Function to start observing when body is available
+    const startObserving = () => {
+      if (document.body) {
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true
+        });
+        console.log('[MathBox] Observer started');
+        
+        // Initial creation attempt
+        createAndMountMathBox();
+      } else {
+        // If body is not available yet, wait and try again
+        setTimeout(startObserving, 100);
+      }
+    };
+
+    // Start observing when document is ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', startObserving);
+    } else {
+      startObserving();
+    }
 
     // Watch for URL changes
     const handleUrlChange = () => {
@@ -642,8 +658,6 @@
       originalPushState.apply(this, arguments);
       handleUrlChange();
     };
-
-    console.log('[MathBox] Observer started');
 
     // Define animations for MathBox visibility
     const style = document.createElement('style');
