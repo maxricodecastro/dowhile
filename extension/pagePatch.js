@@ -7,12 +7,17 @@
     const STATE = { IDLE: "IDLE", THINKING: "THINKING", STREAMING: "STREAMING" };
     let current = STATE.IDLE;
   
-    // 🔸 call the banner on every state transition
+    // State transition handler - now controls MathBox visibility
     const set = s => {
       if (s !== current) {
         current = s;
         console.log("[GPT-DET]", s);
-        window.__GPT_DET_UI__?.(s);          // ← NEW
+        
+        // Control MathBox visibility based on state
+        const mathboxContainer = document.getElementById('mathbox-test');
+        if (mathboxContainer) {
+          mathboxContainer.style.display = (s === STATE.IDLE) ? 'none' : 'flex';
+        }
       }
     };
   
@@ -111,53 +116,7 @@
     console.log("[GPT-DET] fetch monkey-patched in page context");
   
     /* -----------------------------------------------------------
-     * 2.  STATUS BANNER UI
-     * --------------------------------------------------------- */
-    (() => {             // ← inner IIFE (banner only)
-  
-      function findPromptBar() {
-        return document.querySelector(
-          'div.border-token-border-default.flex.w-full.cursor-text.flex-col.items-center.justify-center.rounded-\\[28px\\].border'
-        );
-      }
-  
-      const banner = document.createElement("div");
-      banner.id = "gpt-det-banner";
-      Object.assign(banner.style, {
-        width:        "100%",
-        aspectRatio:  "5 / 1",      // height = 20 % of width
-        borderRadius: "4px",
-        transition:   "background 0.15s ease",
-        marginBottom: "8px"  // increased margin for better spacing
-      });
-  
-      function ensureBanner() {
-        const bar = findPromptBar();
-        if (bar && !document.getElementById("gpt-det-banner")) {
-          bar.parentElement.insertBefore(banner, bar);
-        }
-      }
-  
-      ensureBanner();
-      new MutationObserver(ensureBanner)
-        .observe(document.body, { childList: true, subtree: true });
-  
-      const colourFor = {
-        THINKING:  "#ff4d4d",  // red
-        STREAMING: "#ffd633",  // yellow
-        IDLE:      "#28c76f"   // green
-      };
-  
-      /* expose setter used by the state machine */
-      window.__GPT_DET_UI__ = state => {
-        ensureBanner();
-        banner.style.background = colourFor[state] || "transparent";
-      };
-  
-    })();                 // ← end inner IIFE
-  
-    /* -----------------------------------------------------------
-     * 3.  MATHBOX TEST INSTANCE
+     * 2.  MATHBOX TEST INSTANCE
      * --------------------------------------------------------- */
     // AnimatedText class - Simple character animation as user types
     class AnimatedText {
@@ -593,22 +552,29 @@
       if (existingContainer) {
         existingContainer.remove();
       }
+
+      // Find the ChatGPT prompt bar
+      const promptBar = document.querySelector(
+        'div.border-token-border-default.flex.w-full.cursor-text.flex-col.items-center.justify-center.rounded-\\[28px\\].border'
+      );
+
+      if (!promptBar) {
+        console.log('[MathBox] Prompt bar not found, retrying...');
+        return null;
+      }
       
       const testContainer = document.createElement('div');
       testContainer.id = 'mathbox-test';
       Object.assign(testContainer.style, {
-        position: 'fixed',
-        bottom: '20px',
-        right: '20px',
-        zIndex: '9999',
-        backgroundColor: 'white',
-        padding: '10px',
-        borderRadius: '8px',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
+        width: '100%',
+        display: current === STATE.IDLE ? 'none' : 'flex',  // Initially respect current state
+        justifyContent: 'center',
+        marginBottom: '12px'  // Space between MathBox and prompt
       });
       
-      document.body.appendChild(testContainer);
-      console.log('[MathBox] Container added to body');
+      // Insert before the prompt bar
+      promptBar.parentElement.insertBefore(testContainer, promptBar);
+      console.log('[MathBox] Container added above prompt');
       
       const mathBox = new MathBox();
       mathBox.mount(testContainer);
