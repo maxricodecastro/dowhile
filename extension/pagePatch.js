@@ -88,7 +88,7 @@
               for (const line of block.split("\n")) {
                 const trimmed = line.trim();
                 if (!trimmed.startsWith("data:")) continue;
-  
+                //comment
                 const jsonStr = trimmed.slice(5).trim();
                 if (jsonStr === "[DONE]") {
                   set(STATE.IDLE);
