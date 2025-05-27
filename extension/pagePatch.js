@@ -19,6 +19,8 @@
           if (s === STATE.IDLE) {
             mathboxContainer.classList.remove('mathbox-show');
             mathboxContainer.classList.add('mathbox-hide');
+            // Mark as being removed to prevent recreation
+            mathboxContainer.setAttribute('data-removing', 'true');
             // Remove the element after animation completes
             mathboxContainer.addEventListener('animationend', () => {
               if (mathboxContainer.parentNode) {
@@ -26,12 +28,11 @@
               }
             }, { once: true });
           } else {
-            // Only create if it doesn't exist
-            if (!document.getElementById('mathbox-test')) {
-              createAndMountMathBox();
+            // Only show if not marked for removal
+            if (!mathboxContainer.getAttribute('data-removing')) {
+              mathboxContainer.classList.remove('mathbox-hide');
+              mathboxContainer.classList.add('mathbox-show');
             }
-            mathboxContainer.classList.remove('mathbox-hide');
-            mathboxContainer.classList.add('mathbox-show');
           }
         } else if (s !== STATE.IDLE) {
           // Create new MathBox if we're not in IDLE state
@@ -575,6 +576,12 @@
         return null;
       }
 
+      // Don't create if we're in IDLE state
+      if (current === STATE.IDLE) {
+        console.log('[MathBox] Not creating - currently in IDLE state');
+        return null;
+      }
+
       console.log('[MathBox] Creating test instance...');
       
       // Remove any existing instances
@@ -583,15 +590,87 @@
         existingContainer.remove();
       }
 
-      // Find the ChatGPT prompt bar
-      const promptBar = document.querySelector(
-        'div.border-token-border-default.flex.w-full.cursor-text.flex-col.items-center.justify-center.rounded-\\[28px\\].border'
-      );
+      // Find the ChatGPT prompt container to insert above it
+      const promptContainerSelectors = [
+        // Look for the main prompt form container
+        'form[class*="stretch"]',
+        'form[class*="flex"]',
+        'div[class*="prompt"][class*="container"]',
+        'div[data-testid*="prompt"]',
+        // Look for the bottom fixed container that holds the prompt
+        'div[class*="fixed"][class*="bottom"]',
+        'div[class*="sticky"][class*="bottom"]',
+        // General form containers
+        'form',
+        // Last resort - look for textareas and work up the DOM
+        'textarea[placeholder*="Message"]',
+        'textarea[placeholder*="message"]',
+        'div[role="textbox"][contenteditable="true"]'
+      ];
 
-      if (!promptBar) {
-        console.log('[MathBox] Prompt bar not found, retrying...');
+      let promptContainer = null;
+      let insertionParent = null;
+
+      // Try each selector until we find a suitable container
+      for (const selector of promptContainerSelectors) {
+        try {
+          const elements = document.querySelectorAll(selector);
+          
+          for (const element of elements) {
+            if (element.tagName === 'FORM') {
+              // For forms, check if they contain input elements
+              const hasInput = element.querySelector('textarea, input[type="text"], div[contenteditable]');
+              if (hasInput) {
+                promptContainer = element;
+                insertionParent = element.parentElement;
+                break;
+              }
+            } else if (element.tagName === 'TEXTAREA' || element.getAttribute('contenteditable')) {
+              // For input elements, find their containing form or suitable parent
+              let current = element;
+              while (current && current !== document.body) {
+                current = current.parentElement;
+                if (current && (
+                  current.tagName === 'FORM' ||
+                  current.className.includes('fixed') ||
+                  current.className.includes('sticky') ||
+                  current.className.includes('bottom') ||
+                  (current.className.includes('flex') && current.className.includes('col'))
+                )) {
+                  promptContainer = current;
+                  insertionParent = current.parentElement;
+                  break;
+                }
+              }
+              if (promptContainer) break;
+            } else {
+              // For div containers, check if they contain prompt-related elements
+              const hasPromptElement = element.querySelector('textarea, input[type="text"], div[contenteditable], button[data-testid*="send"]');
+              if (hasPromptElement) {
+                promptContainer = element;
+                insertionParent = element.parentElement;
+                break;
+              }
+            }
+          }
+          
+          if (promptContainer) break;
+        } catch (e) {
+          // Invalid selector, continue to next one
+          continue;
+        }
+      }
+
+      if (!promptContainer || !insertionParent) {
+        console.log('[MathBox] Prompt container not found, retrying...');
+        console.log('[MathBox] Available forms:', document.querySelectorAll('form').length);
+        console.log('[MathBox] Available textareas:', document.querySelectorAll('textarea').length);
+        console.log('[MathBox] Available contenteditable:', document.querySelectorAll('[contenteditable="true"]').length);
         return null;
       }
+      
+      console.log('[MathBox] Prompt container found:', promptContainer.tagName, promptContainer.className || 'no-class');
+      console.log('[MathBox] Insertion parent:', insertionParent.tagName, insertionParent.className || 'no-class');
       
       const testContainer = document.createElement('div');
       testContainer.id = 'mathbox-test';
@@ -607,8 +686,8 @@
       // Set initial animation state based on current state
       testContainer.classList.add(current === STATE.IDLE ? 'mathbox-hide' : 'mathbox-show');
       
-      // Insert before the prompt bar
-      promptBar.parentElement.insertBefore(testContainer, promptBar);
+      // Insert before the prompt container
+      insertionParent.insertBefore(testContainer, promptContainer);
       console.log('[MathBox] Container added above prompt');
       
       const mathBox = new MathBox();
@@ -620,9 +699,19 @@
 
     // Watch for body changes and ensure MathBox exists
     const observer = new MutationObserver((mutations) => {
-      if (!document.getElementById('mathbox-test')) {
-        console.log('[MathBox] Container missing, recreating...');
-        createAndMountMathBox();
+      // Only try to recreate if we're not on home page, don't already have a mathbox, and we're not in IDLE state
+      const isHomePage = window.location.pathname === '/' || window.location.pathname === '/c';
+      const existingMathbox = document.getElementById('mathbox-test');
+      
+      if (!isHomePage && !existingMathbox && current !== STATE.IDLE) {
+        console.log('[MathBox] Container missing and state is active, recreating...');
+        // Add a small delay to allow DOM to settle
+        setTimeout(() => {
+          // Double-check state hasn't changed to IDLE during the timeout
+          if (current !== STATE.IDLE) {
+            createAndMountMathBox();
+          }
+        }, 500);
       }
     });
 
@@ -657,7 +746,8 @@
       
       if (isHomePage && mathboxContainer) {
         mathboxContainer.remove();
-      } else if (!isHomePage) {
+      } else if (!isHomePage && current !== STATE.IDLE) {
+        // Only create if we're not in IDLE state
         createAndMountMathBox();
       }
     };
